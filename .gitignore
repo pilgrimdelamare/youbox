@@ -1,0 +1,8 @@
+node_modules/
+.env
+backend/data/*.json
+backend/songs/
+backend/scenes/
+frontend/**/node_modules/
+build/
+dist/

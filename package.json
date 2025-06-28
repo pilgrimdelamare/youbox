@@ -1,0 +1,12 @@
+{
+  "name": "youbox",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start-backend": "cd backend && npm start",
+    "start-dashboard": "cd frontend/dashboard && npm run dev",
+    "start-monitor": "cd frontend/monitor && npm run dev",
+    "start-voting": "cd frontend/voting && npm run dev",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend/dashboard && npm install && cd ../monitor && npm install && cd ../voting && npm install && cd ../../../"
+  }
+}
