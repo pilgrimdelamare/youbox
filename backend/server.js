@@ -48,48 +48,45 @@ app.use("/songs", express.static(songsDir));
 app.post("/api/scene", (req, res) => {
   const newScene = req.body;
 
-  // ===== NUOVA LOGICA DI SALVATAGGIO E AZZERAMENTO AUTOMATICO =====
-  // Se la nuova scena è 'start' e non siamo all'inizio assoluto del gioco,
-  // significa che abbiamo appena finito un cantante e dobbiamo salvare il suo punteggio.
   if (newScene.name === 'start' && scene.name !== 'standby') {
-      if (currentContestant) { // Assicuriamoci che ci sia un concorrente precedente
+      if (currentContestant) {
           const finalScore = publicVote + intonationScore;
-          
-          // Troviamo l'indice del concorrente nella nostra lista
           const contestantIndex = contestants.findIndex(c => c.id === currentContestant.id);
           if (contestantIndex !== -1) {
-              // Aggiungiamo o aggiorniamo la sua proprietà 'score'
               contestants[contestantIndex].score = finalScore;
               console.log(`Punteggio finale di ${finalScore} salvato per ${currentContestant.name}.`);
           }
       }
       
-      // Azzeriamo i punteggi per il nuovo cantante
       publicVote = 0;
       intonationScore = 0;
       console.log('Punteggi azzerati per il prossimo cantante.');
       
-      // Comunichiamo l'azzeramento ai client
       io.emit('public-vote', publicVote);
       io.emit('intonation-score', intonationScore);
-      // E la lista concorrenti aggiornata con il punteggio
       io.emit('contestants', contestants);
   }
-  // =================================================================
+  
+  // ===== MODIFICA DEFINITIVA: Inizio (Server) =====
+  // Se la scena inviata dalla dashboard è "classifica",
+  // ordiniamo i concorrenti per punteggio e alleghiamo i dati.
+  if (newScene.name === 'classifica') {
+      const sortedContestants = [...contestants].sort((a, b) => (b.score || 0) - (a.score || 0));
+      newScene.data = { contestants: sortedContestants };
+  }
+  // ===== MODIFICA DEFINITIVA: Fine (Server) =====
 
-  // Aggiorniamo la scena corrente e aggiungiamo un ID unico
   scene = newScene;
-  scene.actionId = `${scene.name}-${Date.now()}`;
+  scene.actionId = `${newScene.name}-${Date.now()}`;
 
-  // Se la scena è 'punteggio', alleghiamo i dati dei voti del cantante attuale
-  if (scene.name === 'punteggio') {
+  // Correzione per la scena 'punteggio' che ha un suffisso numerico
+  if (newScene.name.startsWith('punteggio')) {
       scene.data = {
           public: publicVote,
           intonation: intonationScore
       };
   }
   
-  // Trasmettiamo la scena finale a tutti
   io.emit("scene", scene);
   res.json({ ok: true });
 });
@@ -132,7 +129,6 @@ app.post("/api/force-song", (req, res) => {
 });
 
 io.on("connection", socket => {
-  // Invia lo stato corrente al nuovo client
   socket.emit("scene", scene);
   socket.emit("draw-song", drawnSong);
   socket.emit("current-contestant", currentContestant);
@@ -163,15 +159,9 @@ io.on("connection", socket => {
     }
   });
 
-  // ===== MODIFICA CHIRURGICA: Inizio =====
-  // Ascolta l'evento 'reaction' dall'app di voto
-  // e lo ritrasmette a tutti i client (incluso il monitor).
   socket.on('reaction', (reactionData) => {
     io.emit('reaction', reactionData);
   });
-  // ===== MODIFICA CHIRURGICA: Fine =====
-  
-  // Il vecchio evento 'finalize-singer-score' non è più necessario
 });
 
 const PORT = process.env.PORT || 4000;

@@ -12,7 +12,9 @@ const VIDEO_FILES = {
   votazione: "/scenes/voting.mp4",
   valutazione: "/scenes/pitch.mp4",
   punteggio: "/scenes/final-score.mp4",
-  classifica: "/scenes/start.mp4",
+  // ===== MODIFICA =====
+  classifica: "/scenes/classificacantanti.mp4", // Modificato da start.mp4
+  // ====================
   "classifica-tavoli": "/scenes/classificatavoli.mp4"
 };
 
@@ -23,15 +25,21 @@ const OVERLAY_DELAY = 400;
 const socket = io(BACKEND_URL);
 
 function getVideoSrc(scene, drawnSong) {
-  if (scene.name === "esibizione" && drawnSong)
+  if (scene.name.startsWith("esibizione") && drawnSong)
     return `${BACKEND_URL}/songs/${encodeURIComponent(drawnSong.file)}`;
-  if (VIDEO_FILES[scene.name])
-    return `${BACKEND_URL}${VIDEO_FILES[scene.name]}`;
+  
+  const sceneKey = Object.keys(VIDEO_FILES).find(key => scene.name.startsWith(key)) || scene.name;
+  
+  if (VIDEO_FILES[sceneKey])
+    return `${BACKEND_URL}${VIDEO_FILES[sceneKey]}`;
+    
   return "";
 }
 
 function getOverlayContent(scene, drawnSong, currentContestant) {
-  if (scene.name === "presentazione" && currentContestant) {
+  const sceneName = scene.name.split('-')[0];
+
+  if (sceneName === "presentazione" && currentContestant) {
     return (
       <>
         <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 2, color: "#fff", textShadow: "0 0 8px #000" }}>
@@ -42,7 +50,7 @@ function getOverlayContent(scene, drawnSong, currentContestant) {
         </div>
       </>
     );
-  } else if ((scene.name === "titolo" || scene.name === "show-song") && drawnSong) {
+  } else if ((sceneName === "titolo" || sceneName === "show-song") && drawnSong) {
     return (
       <>
         <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: 2, color: "#fff", textShadow: "0 0 8px #000" }}>
@@ -53,23 +61,56 @@ function getOverlayContent(scene, drawnSong, currentContestant) {
         </div>
       </>
     );
-  } else if (scene.name === "estrazione") {
+  } else if (sceneName === "estrazione") {
     return (
       <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: 2, color: "#fff", textShadow: "0 0 12px #000" }}>
         ESTRAZIONE BRANO
       </div>
     );
-  } else if (scene.name === "votazione") {
+  } else if (sceneName === "votazione") {
     return (
       <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: 2, color: "#fff", textShadow: "0 0 12px #000" }}>
         VOTA ORA
       </div>
     );
-  } else if (scene.name === "punteggio" && scene.data) {
+  } else if (sceneName === "punteggio" && scene.data) {
     const total = (Number(scene.data.public) || 0) + (Number(scene.data.intonation) || 0);
     return (
       <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: 2, color: "#fff", textShadow: "0 0 12px #000" }}>
         PUNTEGGIO: {total}
+      </div>
+    );
+  } else if (scene.name === "classifica" && scene.data && scene.data.contestants) {
+    
+    const numContestants = scene.data.contestants.length;
+    
+    let dynamicFontSize = 40;
+    if (numContestants > 5) {
+      dynamicFontSize -= (numContestants - 5) * 2;
+    }
+    dynamicFontSize = Math.max(20, dynamicFontSize); 
+
+    return (
+      <div style={{ width: '80%', maxWidth: '1000px', background: 'rgba(0,0,0,0.7)', padding: '30px', borderRadius: '20px', backdropFilter: 'blur(10px)' }}>
+        <h1 style={{ fontSize: 52, fontWeight: 900, marginBottom: '30px', color: '#fff', textShadow: '0 0 15px #000' }}>CLASSIFICA CANTANTI</h1>
+        <div style={{ width: '100%', textAlign: 'left' }}>
+          {scene.data.contestants.map((c, index) => (
+            <div 
+              key={c.id || c.name} 
+              style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                fontSize: `${dynamicFontSize}px`, 
+                padding: '10px 0', 
+                borderBottom: index === numContestants - 1 ? 'none' : '1px solid rgba(255,255,255,0.2)' 
+              }}
+            >
+              <span style={{ fontWeight: 700 }}><span style={{ display: 'inline-block', width: '60px' }}>{index + 1}.</span> {c.name.toUpperCase()}</span>
+              <span style={{ fontWeight: 900, color: '#f59e0b' }}>{c.score || 0}</span>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -77,14 +118,17 @@ function getOverlayContent(scene, drawnSong, currentContestant) {
 }
 
 function overlayKey(scene, drawnSong, currentContestant) {
-  if (scene.name === "presentazione" && currentContestant)
+  const sceneName = scene.name.split('-')[0];
+
+  if (sceneName === "presentazione" && currentContestant)
     return `presentazione-${currentContestant.name}`;
-  if ((scene.name === "titolo" || scene.name === "show-song") && drawnSong)
+  if ((sceneName === "titolo" || sceneName === "show-song") && drawnSong)
     return `song-${drawnSong.author}-${drawnSong.title}`;
-  if (scene.name === "estrazione") return "estrazione";
-  if (scene.name === "votazione") return "votazione";
-  if (scene.name === "punteggio" && scene.data)
+  if (sceneName === "estrazione") return "estrazione";
+  if (sceneName === "votazione") return "votazione";
+  if (sceneName === "punteggio" && scene.data)
     return `punteggio-${scene.data.public || 0}-${scene.data.intonation || 0}`;
+  if (scene.name === "classifica") return "classifica-cantanti-overlay";
   return scene.name || "none";
 }
 
@@ -124,9 +168,7 @@ export default function App() {
   const [currentOverlayKey, setCurrentOverlayKey] = useState("");
   const overlayTimeoutRef = useRef();
 
-  // ===== MODIFICA CHIRURGICA: Inizio (1/3) =====
   const [reactions, setReactions] = useState([]);
-  // ===== MODIFICA CHIRURGICA: Fine (1/3) =====
 
   useEffect(() => {
     const newOverlay = getOverlayContent(scene, drawnSong, currentContestant);
@@ -157,7 +199,7 @@ export default function App() {
 
   useEffect(() => {
     socket.on("scene", newScene => {
-      if (scene.name !== newScene.name) {
+      if (newScene.name !== scene.name) {
         setPrevScene(scene);
         setPrevDrawnSong(drawnSong);
         setPrevContestant(currentContestant);
@@ -186,7 +228,6 @@ export default function App() {
     socket.on("draw-song", setDrawnSong);
     socket.on("current-contestant", setCurrentContestant);
 
-    // ===== MODIFICA CHIRURGICA: Inizio (2/3) =====
     const handleReaction = (reaction) => {
         const newReaction = {
             id: Date.now() + Math.random(),
@@ -209,24 +250,23 @@ export default function App() {
     };
 
     socket.on('reaction', handleReaction);
-    // ===== MODIFICA CHIRURGICA: Fine (2/3) =====
 
     return () => {
       socket.off("scene");
       socket.off("draw-song");
       socket.off("current-contestant");
-      socket.off('reaction', handleReaction); // Non dimenticare di pulire il nuovo listener
+      socket.off('reaction', handleReaction);
       if (overlayTimeoutRef.current) clearTimeout(overlayTimeoutRef.current);
     };
   }, [scene, drawnSong, currentContestant]);
 
   useEffect(() => {
-    if (scene.name === "estrazione" && !drawnSong) {
+    if (scene.name.startsWith("estrazione") && !drawnSong) {
       fetch(`${BACKEND_URL}/api/draw-song/random`)
         .then(res => res.json())
         .then(setDrawnSong);
     }
-    if (scene.name !== "estrazione" && scene.name !== "titolo" && scene.name !== "show-song" && scene.name !== "esibizione") {
+    if (!scene.name.startsWith("estrazione") && !scene.name.startsWith("titolo") && !scene.name.startsWith("show-song") && !scene.name.startsWith("esibizione")) {
       setDrawnSong(null);
     }
   }, [scene.name]);
@@ -241,9 +281,9 @@ export default function App() {
   }
 
   const videoSrc = getVideoSrc(scene, drawnSong);
-  const loopVideo = scene.name !== "esibizione";
+  const loopVideo = !scene.name.startsWith("esibizione");
   const prevVideoSrc = prevScene ? getVideoSrc(prevScene, prevDrawnSong) : null;
-  const prevLoop = prevScene && prevScene.name !== "esibizione";
+  const prevLoop = prevScene && !prevScene.name.startsWith("esibizione");
 
   return (
     <div
@@ -260,7 +300,6 @@ export default function App() {
     >
       <link href="https://fonts.googleapis.com/css?family=Montserrat:700,900&display=swap" rel="stylesheet" />
       
-      {/* ===== MODIFICA CHIRURGICA: Inizio (3/3) ===== */}
       <style>
           {`
               @keyframes fadeAndFloat {
@@ -280,7 +319,6 @@ export default function App() {
               {reaction.type === 'heart' ? '❤️' : '🍅'}
           </div>
       ))}
-      {/* ===== MODIFICA CHIRURGICA: Fine (3/3) ===== */}
 
       {isCrossfading && prevVideoSrc && (
         <video
