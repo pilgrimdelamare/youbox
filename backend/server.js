@@ -162,6 +162,14 @@ io.on("connection", socket => {
       io.emit("public-vote", publicVote);
     }
   });
+
+  // ===== MODIFICA CHIRURGICA: Inizio =====
+  // Ascolta l'evento 'reaction' dall'app di voto
+  // e lo ritrasmette a tutti i client (incluso il monitor).
+  socket.on('reaction', (reactionData) => {
+    io.emit('reaction', reactionData);
+  });
+  // ===== MODIFICA CHIRURGICA: Fine =====
   
   // Il vecchio evento 'finalize-singer-score' non è più necessario
 });
